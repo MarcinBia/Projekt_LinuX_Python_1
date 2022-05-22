@@ -1,0 +1,187 @@
+
+inet 		192.168.56.103		kali
+netmask 	255.255.255.0
+subnet mask 	256
+
+192.168.56.101  	RAVEN		
+			open ports: 
+			22 - ssh 
+			80 - http
+192.168.56.102		Book-shelf	
+			open ports: 
+			21 - ftp 
+			22 - ssh 
+			80 - http
+			
+192.168.56.104		SDA
+			open ports: 
+			21 - ftp 
+			22 - ssh 
+			80 - http
+
+1. ###############################
+# znajdz moj IP
+import os
+IP = os.popen('ifconfig').read()
+print(IP)
+
+OUTPUT
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.56.103  netmask 255.255.255.0  broadcast 192.168.56.255
+        inet6 fe80::a00:27ff:fee5:dbb7  prefixlen 64  scopeid 0x20<link>
+        ether 08:00:27:e5:db:b7  txqueuelen 1000  (Ethernet)
+        RX packets 90714  bytes 10224002 (9.7 MiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 98536  bytes 6821234 (6.5 MiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 5103  bytes 287784 (281.0 KiB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 5103  bytes 287784 (281.0 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+###############################
+
+###############################
+# znajdz maske
+import os
+def mask_search():    
+    device = input("Z jakiego interfejsu sieciowego korzystasz? [np. eth0]: ")
+    mask = str(os.popen(f"nmcli dev show {device} | grep  IP4.ADDRESS").read()).strip().split("/")[1]
+    print(mask)
+    return mask
+
+mask_search()
+
+
+OUTPUT:
+─# python3 /home/kali/Desktop/maska.py                  
+Z jakiego interfejsu sieciowego korzystasz? [np. eth0]: eth0
+24
+ 
+###############################    
+
+
+###############################
+#znajdz adresy ip online
+from scapy.all import *
+from scapy.layers.inet import *
+for ip in range(98, 110):  			#dla zmiejszenia czasu przeszukiwania zawezylem zakres
+    adres = "192.168.56." + str(ip)
+    packet = IP(dst=adres, ttl=20)/ICMP()
+    reply = sr1(packet, timeout=2)
+    if reply:
+         print(adres, "is online")
+         ip_online = [adres] #
+    else:
+        print(adres, "DOWN")
+        
+        
+OUTPUT:
+192.168.56.103 DOWN
+Begin emission:
+Finished sending 1 packets.
+.*
+Received 2 packets, got 1 answers, remaining 0 packets
+192.168.56.104 is online
+Begin emission:
+WARNING: Mac address to reach destination not found. Using broadcast.
+Finished sending 1 packets.
+
+Received 0 packets, got 0 answers, remaining 1 packets
+192.168.56.105 DOWN
+###############################
+
+
+###############################
+# znajdz aktywne porty
+from scapy.layers.inet import *
+otwarte_porty = []
+for port in range(1, 100):
+    pakiet = IP(dst="192.168.56.101")/TCP(dport=port, sport=random.randint(20000, 30000), flags="S")
+    ### pakiet = IP(dst=ip_online)/TCP(dport=port, sport=random.randint(20000, 30000), flags="S")  # linia dopisana w programie zbiorczym, w przypadku aktywacji linia powzyej do #
+    response = sr1(pakiet)
+    if str(response.getlayer(TCP).flags) == "SA":
+        otwarte_porty.append(port)
+print(otwarte_porty)
+
+
+OUTPUT:
+Received 1 packets, got 1 answers, remaining 0 packets
+[21, 22, 80]
+###############################
+
+
+
+###############################
+#Banner_grabbing
+import socket
+from threading import BrokenBarrierError
+
+targetIP = input(" podaj adres IP maszyny: ")
+while True:
+    try:
+        mySocket = socket.socket()
+        targetPort = input(" podaj port do sprawdzenia: ")
+        if "exit" in targetPort:
+            break
+        else:
+            mySocket = socket.socket()
+            mySocket.connect((targetIP, int(targetPort)))
+            mySocket.send("Get Banner \r\n".encode())
+            serverRecv = mySocket.recv((2048)).decode()
+            print(serverRecv)
+    except:
+        continue
+        
+        
+OUTPUT:
+  podaj port do sprawdzenia: 80                                                                
+HTTP/1.1 400 Bad Request                                                                      
+Date: Sat, 14 May 2022 10:11:47 GMT                                                           
+Server: Apache/2.4.52 (Ubuntu)                                                                
+Content-Length: 301                                                                           
+Connection: close                                                                             
+Content-Type: text/html; charset=iso-8859-1
+
+ podaj port do sprawdzenia: 21
+220 (vsFTPd 3.0.5)                                                                            
+500 HTTP protocol commands not allowed. 
+
+ podaj port do sprawdzenia: 22                                                                
+SSH-2.0-OpenSSH_8.9p1 Ubuntu-3 
+#####################################
+      
+#####################################
+
+http://192.168.56.104  - source site inspection
+<!-- I BASE-ically encoded it 64 years ago ;) -->
+<!-- RW51bWVyYXRlIG1lIHdpdGggZGlyZWN0b3J5LWxpc3QtbG93ZXJjYXNlLTIuMy1tZWRpdW0udHh0 -->
+#####################################
+
+#####################################
+#DECODOWANIE 64
+import base64
+
+base64_message = 'RW51bWVyYXRlIG1lIHdpdGggZGlyZWN0b3J5LWxpc3QtbG93ZXJjYXNlLTIuMy1tZWRpdW0udHh0'
+base64_bytes = base64_message.encode('ascii')
+message_bytes = base64.b64decode(base64_bytes)
+message = message_bytes.decode('ascii')
+
+print(message)
+
+
+Output:
+──(root💀kali)-[/usr/share/wordlists]
+└─# python3 /home/kali/Desktop/x.py                                                       4 ⚙
+Enumerate me with directory-list-lowercase-2.3-medium.txt
+#####################################
+
+
+
+
+
